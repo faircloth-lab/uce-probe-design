@@ -1,0 +1,140 @@
+apiMel4 to nasVit2 alignment
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- run lastz align to align nasonia chromos to apis genome::
+
+    for i in 1 2 3 4 5;
+        do echo $i;
+            lastz /Volumes/Data/Genomes/Insects/nasVit2/nasVit2.2bit/chr$i \
+                /Volumes/Data/Genomes/Insects/apiMel4/apiMel4.2bit \
+                --notransition --step=20 --nogapped --format=maf \
+                > maf/nasVit2-chr$i-to-apiMel4.maf;
+        done
+
+- do same for unplaced reads::
+
+    lastz /Volumes/Data/Genomes/Insects/nasVit2/nasVit2.unplaced.2bit[multiple] \
+        /Volumes/Data/Genomes/Insects/apiMel4/apiMel4.2bit \
+        --notransition --step=20 --nogapped --format=maf \
+        > maf/nasVit2-chrUn-to-apiMel4.maf
+
+- add target and query prefixes to each MAF::
+
+    python rename_maf.py maf maf-rename nasVit2. apiMel4.
+
+- load these up into database - keep everything over 40 bp::
+
+    python summary.py --maf maf-rename \
+        --consensus-length 40 --alignment-length 40 \
+        --metadata-key=nasVit2
+
+- set duplicates default to 0 manually in db
+- get sequence out of db::
+
+    python get_conserved_sequence_from_db.py insect-uce.sqlite cons-out-with-dupes.fa
+
+- check probe sequences for dupes (using PHYLUCE easy_lastz)::
+
+    python phyluce/bin/share/easy_lastz.py \
+        --target cons-out-with-dupes.fa --query cons-out-with-dupes.fa \
+        --output cons-out-to-self.lastz \
+        --coverage=50 --identity=80
+
+- mark dupes in database::
+
+    python remove_cons_duplicates.py --db insect-uce.sqlite --lastz cons-out-to-self.lastz
+
+- get new file of non-dupes from dbase::
+
+    python get_conserved_sequence_from_db.py insect-uce.sqlite cons-out.fa --drop-dupes
+
+
+check hits in other taxa to see if we find these at all
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- hit attCep1.0 with UCE slices, to see what we get::
+
+    python phyluce/bin/share/run_lastz.py \
+        --target /Volumes/Data/Genomes/Insects/attCep1/attCep1.2bit \
+        --query cons-out.fa --output lastz/all-sites-to-attCep1.lastz \
+        --nprocs=6 --identity=80 --coverage=80 --huge
+
+- that looks okay - there are about 1300 sites that map over (although many are short)
+- buffer out sequences to 180 and see what we get.  Do same for other lengths::
+
+    python get_conserved_sequence_from_db.py \
+        insect-uce.sqlite \
+        cons-out-buffered-to-100.fa \
+        --drop-dupes --buffer-to 100 \
+        --two-bit /Volumes/Data/Genomes/Insects/nasVit2/nasVit2.2bit
+
+    python get_conserved_sequence_from_db.py \
+        insect-uce.sqlite \
+        cons-out-buffered-to-120.fa \
+        --drop-dupes --buffer-to 120 \
+        --two-bit /Volumes/Data/Genomes/Insects/nasVit2/nasVit2.2bit
+
+    python get_conserved_sequence_from_db.py \
+        insect-uce.sqlite \
+        cons-out-buffered-to-180.fa \
+        --drop-dupes --buffer-to 180 \
+        --two-bit /Volumes/Data/Genomes/Insects/nasVit2/nasVit2.2bit
+
+- do some alignments of various UCE+sequence attCep1.0 to get idea of match #::
+
+    python ~/Git/brant/phyluce/bin/share/run_lastz.py \
+            --target /Volumes/Data/Genomes/Insects/attCep1/attCep1.2bit \
+            --query cons-out-buffered-to-100.fa --output lastz/cons-out-buff-100-to-attCep1.lastz \
+            --nprocs=6 --identity=80 --coverage=80 --huge
+
+    python ~/Git/brant/phyluce/bin/share/run_lastz.py \
+            --target /Volumes/Data/Genomes/Insects/attCep1/attCep1.2bit \
+            --query cons-out-buffered-to-120.fa --output lastz/cons-out-buff-120-to-attCep1.lastz \
+            --nprocs=6 --identity=80 --coverage=80 --huge
+
+    python ~/Git/brant/phyluce/bin/share/run_lastz.py \
+        --target /Volumes/Data/Genomes/Insects/attCep1/attCep1.2bit \
+        --query cons-out-buffered-to-180.fa --output lastz/cons-out-buff-180-to-attCep1.lastz \
+        --nprocs=6 --identity=80 --coverage=80 --huge
+
+- align those to Amel_4.5::
+
+    python ~/Git/brant/phyluce/bin/share/run_lastz.py \
+        --target /Volumes/Data/Genomes/Insects/apiMel4/apiMel4.2bit \
+        --query cons-out-buffered-to-120.fa --output lastz/cons-out-buff-120-to-apiMel4.lastz \
+        --nprocs=6 --identity=80 --coverage=80 --huge
+
+- align those to dmel-5.36::
+
+    python ~/Git/brant/phyluce/bin/share/run_lastz.py \
+        --target /Volumes/Data/Genomes/dmel/dmel-5.36.2bit \
+        --query cons-out-buffered-to-120.fa --output lastz/cons-out-buff-120-to-dmel-5.36.lastz \
+        --nprocs=6 --identity=80 --coverage=80 --huge
+
+- align those to triCas3::
+
+    python ~/Git/brant/phyluce/bin/share/run_lastz.py \
+        --target /Volumes/Data/Genomes/Insects/triCas3/triCas3.2bit \
+        --query cons-out-buffered-to-120.fa --output lastz/cons-out-buff-120-to-triCas3.lastz \
+        --nprocs=6 --identity=80 --coverage=80 --huge
+
+- check alignments against some other HYM genomes, and also see what happens
+  aligning 180 bp region::
+
+    python ~/Git/brant/phyluce/bin/share/run_lastz.py \
+            --target /Volumes/Data/Genomes/Insects/attCep1/attCep1.2bit \
+            --query cons-out-buffered-to-180.fa --output lastz/180/cons-out-buff-180-to-attCep1.lastz \
+            --nprocs=6 --identity=80 --coverage=55 --huge
+
+    python ~/Git/brant/phyluce/bin/share/run_lastz.py \
+            --target /Volumes/Data/Genomes/Insects/apiMel4/apiMel4.2bit \
+            --query cons-out-buffered-to-180.fa --output lastz/180/cons-out-buff-180-to-apiMel4.lastz \
+            --nprocs=6 --identity=80 --coverage=55 --huge
+
+    python ~/Git/brant/phyluce/bin/share/run_lastz.py \
+            --target /Volumes/Data/Genomes/Insects/solInv1/solInv1.2bit \
+            --query cons-out-buffered-to-180.fa --output lastz/180/cons-out-buff-180-to-solInv1.lastz \
+            --nprocs=6 --identity=80 --coverage=55 --huge
+
+
+Design probes from buffered-to-180bp using get_tiled_probes.py from phyluce.
